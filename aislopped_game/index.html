@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dino WASM</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         background: #fff; font-family: system-ui, sans-serif; color: #535353; }
+  main { position: relative; width: min(100vw, 1200px); }
+  canvas { display: block; width: 100%; image-rendering: pixelated; }
+  #over { position: absolute; inset: 0; display: grid; place-items: center;
+          font-weight: 600; letter-spacing: .1em; text-align: center; pointer-events: none; }
+  #over[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <canvas id="c"></canvas>
+  <div id="over" hidden>GAME OVER<br><small>spazio / tocco per ricominciare</small></div>
+</main>
+
+<script type="module">
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const over = document.getElementById("over");
+
+const { instance } = await WebAssembly.instantiateStreaming(fetch("game.wasm"));
+const x = instance.exports;
+
+console.info(x);
+
+const W = x.width(), H = x.height();
+canvas.width = W;
+canvas.height = H;
+
+x.init((Math.random() * 2 ** 32) >>> 0);
+
+addEventListener("keydown", e => {
+  if (e.repeat) return;
+  if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); x.press(); }
+});
+canvas.addEventListener("pointerdown", () => x.press());
+
+let last = performance.now();
+function frame(now) {
+  x.update((now - last) / 1000);
+  last = now;
+
+  // la view va ricreata ogni frame: memory.buffer si invalida se la memoria cresce
+  const px = new Uint8ClampedArray(x.memory.buffer, x.fb_ptr(), W * H * 4);
+  ctx.putImageData(new ImageData(px, W, H), 0, 0);
+
+  over.hidden = !x.is_over();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

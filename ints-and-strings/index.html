@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Math Stuff in WASM</title>
+</head>
+<body>
+    <script type="module">        
+        const { instance } = await WebAssembly.instantiateStreaming(fetch("math.wasm"));
+        const x = instance.exports;
+        console.info(x)
+        
+        // simple numbers
+        const y = x.add(5, 6);
+        console.log(y)
+
+        const enc = new TextEncoder();
+        const dec = new TextDecoder();
+
+        function writeString(s) {
+            // converto la stringa in un array di int con rappresentazione UTF-8 della stringa
+            const bytes = enc.encode(s);
+            // chiamo una malloc da C con la lunghezza della stringa +1 del \0
+            const ptr = x.alloc(bytes.length + 1);
+            if (ptr === 0) throw new Error("Heap esaurito!");
+            // creo una finestra sulla memoria di C
+            const mem = new Uint8Array(x.memory.buffer);
+            // scrivo i bytes al puntatore ptr
+            mem.set(bytes, ptr);
+            // aggiungo il null terminator
+            mem[ptr + bytes.length] = 0;
+            return ptr;
+        }
+
+        function readString(ptr) {
+            // nuova finestra sull'intera memoria di C
+            const mem = new Uint8Array(x.memory.buffer);
+            // trascino end fino al concludersi della stringa
+            let end = ptr;
+            while (mem[end] !== 0) end++;
+            // faccio il decode di una piccola frazione della memoria compresa tra i ptrs
+            return dec.decode(mem.subarray(ptr, end));
+        }
+        
+        try {
+            const aPtr = writeString("pane");
+            const bPtr = writeString("ttone");
+            const cPtr = x.merge_strings(aPtr, bPtr);
+            if (ptr === 0) throw new Error("Heap esaurito!");
+            const out  = readString(cPtr);
+            console.log(out);
+        } finally {
+            x.clear_heap();
+        }
+        
+
+
+    </script>
+</body>
+</html>

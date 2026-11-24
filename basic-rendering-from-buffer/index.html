@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Math Stuff in WASM</title>
+</head>
+<body>
+    <canvas id="c"></canvas>
+    <script type="module">        
+        const { instance } = await WebAssembly.instantiateStreaming(fetch("basic-rendering.wasm"));
+        const x = instance.exports;
+        console.info(x)
+
+        const fbPtr = x.get_fb();
+        const W = x.fb_w();
+        const H = x.fb_h();
+        const mem = new Uint8ClampedArray(x.memory.buffer, fbPtr, W*H*4 );
+        const img = new ImageData(mem, W, H);
+        
+        const canvas = document.getElementById("c");
+        const ctx = canvas.getContext("2d");
+        ctx.putImageData(img, 0, 0);
+               
+        // performance test
+        const t0 = performance.now();
+        x.render();
+        const t1 = performance.now();
+        ctx.putImageData(img, 0, 0);
+        const t2 = performance.now();
+        console.log(`render: ${(t1 - t0).toFixed(2)} ms, putImageData: ${(t2 - t1).toFixed(2)} ms`);
+
+        function frame() {
+            x.render();
+            ctx.putImageData(img, 0, 0);
+            requestAnimationFrame(frame);
+        }
+
+        frame();
+
+    </script>
+</body>
+</html>
